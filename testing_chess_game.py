@@ -1,4 +1,5 @@
 import pygame
+import math
 
 # Initialize Pygame
 pygame.init()
@@ -14,6 +15,12 @@ current_turn = 'white'  # 'white' or 'black'
 # Initialize Pygame screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Chess Game")
+
+# Piece Values
+PIECE_VALUES = {
+    'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 100,
+    'p': -1, 'n': -3, 'b': -3, 'r': -5, 'q': -9, 'k': -100
+}
 
 # Load Piece Images
 PIECE_IMAGES = {}
@@ -36,7 +43,6 @@ def draw_board():
                              (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
 
 # Initial Board Setup (8x8 Matrix)
-# Uppercase = White, Lowercase = Black, "." = Empty
 board = [
     ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
     ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
@@ -61,31 +67,20 @@ def draw_pieces():
                 screen.blit(PIECE_IMAGES[piece], (col * SQUARE_SIZE, row * SQUARE_SIZE))
 
 # Draw Side Area Background
-# Draw Side Area Background
 def draw_side_area():
-    # Draw the side area background
     pygame.draw.rect(screen, SIDE_COLOR, (600, 0, 400, 600))
 
 # Draw Captured Pieces
 def draw_captured_pieces():
-    # Draw the side area background
     draw_side_area()
-
-    # Position for captured white pieces
-    white_x = 610  # X position for white pieces
-    white_y = 20   # Y position for white pieces
-
-    # Position for captured black pieces
-    black_x = 610  # X position for black pieces
-    black_y = HEIGHT // 2 + 20  # Y position for black pieces
-
-    # Draw captured white pieces
+    white_x, white_y = 610, 20  # Position for captured white pieces
+    black_x, black_y = 610, HEIGHT // 2 + 20  # Position for captured black pieces
     for i, piece in enumerate(captured_white):
         screen.blit(PIECE_IMAGES[piece], (white_x + (i % 4) * (SQUARE_SIZE // 2), white_y + (i // 4) * (SQUARE_SIZE // 2)))
-
-    # Draw captured black pieces
     for i, piece in enumerate(captured_black):
         screen.blit(PIECE_IMAGES[piece], (black_x + (i % 4) * (SQUARE_SIZE // 2), black_y + (i // 4) * (SQUARE_SIZE // 2)))
+
+# Rules for Piece Movement
 def rules(row, col, new_row, new_col, piece):
     global captured_white, captured_black
 
@@ -192,51 +187,45 @@ def rules(row, col, new_row, new_col, piece):
 
     return False  # Default case: invalid move
 
-# Check if the king is in check
-def is_in_check(board, turn):
-    # Find the king's position
-    king = 'wK' if turn == 'white' else 'bK'
-    king_pos = None
+# Evaluate a Move Based on Heuristics
+def evaluate_move(board, move, color):
+    score = 0
     for row in range(8):
         for col in range(8):
-            if board[row][col] == king:
-                king_pos = (row, col)
-                break
-        if king_pos:
-            break
+            piece = move[row][col]
+            if piece != '.':
+                # Add piece value to the score
+                score += PIECE_VALUES[piece[1]] * (1 if piece[0] == color else -1)
+    return score
 
-    if not king_pos:
-        return False  # King not found (should not happen in a valid game)
-
-    # Check if any opponent's piece can attack the king
-    opponent_pieces = ['bP', 'bR', 'bN', 'bB', 'bQ', 'bK'] if turn == 'white' else ['wP', 'wR', 'wN', 'wB', 'wQ', 'wK']
+# Knowledge-Based Decision Maker
+def make_knowledge_based_move(color):
+    best_move = None
+    best_score = -math.inf  # Use math.inf for initializing best_score
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
-            if piece in opponent_pieces:
-                if rules(row, col, king_pos[0], king_pos[1], piece):
-                    return True  # King is in check
-    return False
-
-# Draw Check Alert
-def draw_check_alert():
-    font = pygame.font.SysFont('Arial', 36)
-    check_text = "Check!"
-    text_surface = font.render(check_text, True, (255, 0, 0))  # Red color
-    screen.blit(text_surface, (610, 400))  # Position the alert on the side
-
-# Draw Current Turn
-def draw_current_turn():
-    font = pygame.font.SysFont('Arial', 24)
-    turn_text = f"Current Turn: {current_turn.capitalize()}"
-    text_surface = font.render(turn_text, True, (0, 0, 0))
-    screen.blit(text_surface, (610, 500))  # Adjust the position as needed
+            if piece != '.' and piece[0] == color:
+                for new_row in range(8):
+                    for new_col in range(8):
+                        if rules(row, col, new_row, new_col, piece):
+                            # Simulate the move
+                            new_board = [row[:] for row in board]
+                            new_board[new_row][new_col] = piece
+                            new_board[row][col] = '.'
+                            # Evaluate the move
+                            score = evaluate_move(new_board, new_board, color)
+                            if score > best_score:
+                                best_score = score
+                                best_move = new_board
+    if best_move:
+        for row in range(8):
+            for col in range(8):
+                board[row][col] = best_move[row][col]
 
 # Main Game Loop
 def main():
-    global captured_white, captured_black, current_turn
-    captured_white = []  # Clear captured_white at the start
-    captured_black = []  # Clear captured_black at the start
+    global current_turn
     piece = None
     dragging_piece = None
     dragging_piece_pos = None
@@ -248,25 +237,19 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = event.pos
-                col, row = mouse_x // SQUARE_SIZE, mouse_y // SQUARE_SIZE
-                if board[row][col] != '.':  # If there's a piece on the square
-                    piece = board[row][col]
-                    # Check if the piece belongs to the current player
-                    if (current_turn == 'white' and 'w' in piece) or (current_turn == 'black' and 'b' in piece):
+                if current_turn == 'white':  # Only allow white pieces to move
+                    mouse_x, mouse_y = event.pos
+                    col, row = mouse_x // SQUARE_SIZE, mouse_y // SQUARE_SIZE
+                    if board[row][col] != '.' and board[row][col][0] == 'w':
+                        piece = board[row][col]
                         dragging_piece = board[row][col]
                         dragging_piece_pos = (row, col)
                         dragging_piece_offset = (mouse_x % SQUARE_SIZE, mouse_y % SQUARE_SIZE)
                         board[row][col] = '.'  # Remove piece from the board temporarily
 
-            # Mouse Motion - Dragging the Piece
-            elif event.type == pygame.MOUSEMOTION:
-                if dragging_piece:
-                    mouse_x, mouse_y = event.pos
-
             # Mouse Button Up - Drop the Piece
             elif event.type == pygame.MOUSEBUTTONUP:
-                if dragging_piece:
+                if dragging_piece and current_turn == 'white':  # Only allow white pieces to move
                     mouse_x, mouse_y = event.pos
                     col, row = mouse_x // SQUARE_SIZE, mouse_y // SQUARE_SIZE
                     old_row, old_col = dragging_piece_pos
@@ -275,7 +258,10 @@ def main():
                         board[row][col] = dragging_piece
                         dragging_piece = None
                         # Switch turns
-                        current_turn = 'black' if current_turn == 'white' else 'white'
+                        current_turn = 'black'
+                        # AI makes a move after the player
+                        make_knowledge_based_move('b')
+                        current_turn = 'white'  # Switch back to the player's turn
                     else:
                         board[old_row][old_col] = dragging_piece
                         dragging_piece = None
@@ -287,18 +273,11 @@ def main():
         # Draw Captured Pieces
         draw_captured_pieces()
 
-        # Draw Current Turn
-        draw_current_turn()
-
         # Draw Dragging Piece
         if dragging_piece:
             mouse_x, mouse_y = pygame.mouse.get_pos()
             screen.blit(PIECE_IMAGES[dragging_piece],
                         (mouse_x - dragging_piece_offset[0], mouse_y - dragging_piece_offset[1]))
-
-        # Check if the king is in check and display an alert
-        if is_in_check(board, current_turn):
-            draw_check_alert()
 
         pygame.display.flip()  # Update the display
 
