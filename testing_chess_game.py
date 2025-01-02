@@ -33,6 +33,42 @@ def load_images():
             (SQUARE_SIZE, SQUARE_SIZE)
         )
 
+# Restart Function
+def restart():
+    global board, captured_white, captured_black, dragging_piece, dragging_piece_pos, dragging_piece_offset, current_turn
+    # Reset the chessboard to the initial state
+    board = [
+        ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
+        ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
+        ['.', '.', '.', '.', '.', '.', '.', '.'],
+        ['.', '.', '.', '.', '.', '.', '.', '.'],
+        ['.', '.', '.', '.', '.', '.', '.', '.'],
+        ['.', '.', '.', '.', '.', '.', '.', '.'],
+        ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
+        ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
+    ]
+    # Clear captured pieces
+    captured_white = []
+    captured_black = []
+    # Reset dragging state
+    dragging_piece = None
+    dragging_piece_pos = None
+    dragging_piece_offset = None
+    # Reset turn to white
+    current_turn = 'white'
+
+# Draw Restart Button
+def draw_restart_button():
+    # Button dimensions
+    button_x, button_y, button_width, button_height = 620, 520, 160, 50
+    # Button rectangle
+    pygame.draw.rect(screen, (180, 0, 0), (button_x, button_y, button_width, button_height))
+    # Button text
+    font = pygame.font.SysFont(None, 30)
+    text = font.render("Restart", True, (255, 255, 255))
+    screen.blit(text, (button_x + 35, button_y + 10))
+    return button_x, button_y, button_width, button_height
+
 # Draw Chessboard
 def draw_board():
     colors = [WHITE, GREEN]
@@ -237,8 +273,13 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if current_turn == 'white':  # Only allow white pieces to move
-                    mouse_x, mouse_y = event.pos
+                mouse_x, mouse_y = event.pos
+                # Restart button logic
+                button_x, button_y, button_width, button_height = draw_restart_button()
+                if button_x <= mouse_x <= button_x + button_width and button_y <= mouse_y <= button_y + button_height:
+                    restart()
+                # Player move logic
+                elif current_turn == 'white' and 0 <= mouse_x < 600 and 0 <= mouse_y < 600:  # Only allow white pieces to move
                     col, row = mouse_x // SQUARE_SIZE, mouse_y // SQUARE_SIZE
                     if board[row][col] != '.' and board[row][col][0] == 'w':
                         piece = board[row][col]
@@ -272,6 +313,9 @@ def main():
 
         # Draw Captured Pieces
         draw_captured_pieces()
+
+        # Draw Restart Button
+        draw_restart_button()
 
         # Draw Dragging Piece
         if dragging_piece:
