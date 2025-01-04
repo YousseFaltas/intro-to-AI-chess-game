@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>testing chess game</Name>
     <RootNamespace>testing chess game</RootNamespace>
-    <InterpreterId>Global|PythonCore|3.10</InterpreterId>
+    <InterpreterId>Global|PythonCore|3.9</InterpreterId>
     <TestFramework>Pytest</TestFramework>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

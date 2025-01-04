@@ -1,5 +1,6 @@
 import pygame
 import math
+import numpy as np
 
 # Initialize Pygame
 pygame.init()
@@ -22,6 +23,72 @@ PIECE_VALUES = {
     'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
 }
 
+# Define center squares
+CENTER_SQUARES = [(3, 3), (3, 4), (4, 3), (4, 4)]
+
+
+PIECE_SQUARE_TABLES = {
+    'P': [
+        [0,  0,  0,  0,  0,  0,  0,  0],
+        [50, 50, 50, 50, 50, 50, 50, 50],
+        [10, 10, 20, 30, 30, 20, 10, 10],
+        [5,  5, 10, 25, 25, 10, 5,  5],
+        [0,  0,  0, 20, 20,  0, 0,  0],
+        [5, -5, -10,  0,  0, -10, -5,  5],
+        [5, 10, 10, 10, 10, 10, 10,  5],
+        [0,  0,  0,  0,  0,  0,  0,  0]
+    ],
+    'N': [
+        [-50,-40,-30,-30,-30,-30,-40,-50],
+        [-40,-20,  0,  5,  5,  0,-20,-40],
+        [-30,  5, 10, 15, 15, 10,  5,-30],
+        [-30,  0, 15, 20, 20, 15,  0,-30],
+        [-30,  5, 15, 20, 20, 15,  5,-30],
+        [-30,  0, 10, 15, 15, 10,  0,-30],
+        [-40,-20,  0,  0,  0,  0,-20,-40],
+        [-50,-40,-30,-30,-30,-30,-40,-50]
+    ],
+    'B': [
+        [-20,-10,-10,-10,-10,-10,-10,-20],
+        [-10,  0,  0,  0,  0,  0,  0,-10],
+        [-10,  0,  5, 10, 10,  5,  0,-10],
+        [-10,  5,  5, 10, 10,  5,  5,-10],
+        [-10,  0, 10, 10, 10, 10,  0,-10],
+        [-10, 10, 10, 10, 10, 10, 10,-10],
+        [-10,  5,  0,  0,  0,  0,  5,-10],
+        [-20,-10,-10,-10,-10,-10,-10,-20]
+    ],
+    'R': [
+        [0,  0,  0,  0,  0,  0,  0,  0],
+        [5, 10, 10, 10, 10, 10, 10,  5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [-5,  0,  0,  0,  0,  0,  0, -5],
+        [0,  0,  0,  5,  5,  0,  0,  0]
+    ],
+    'Q': [
+        [-20,-10,-10, -5, -5,-10,-10,-20],
+        [-10,  0,  0,  0,  0,  0,  0,-10],
+        [-10,  0,  5,  5,  5,  5,  0,-10],
+        [ -5,  0,  5,  5,  5,  5,  0, -5],
+        [  0,  0,  5,  5,  5,  5,  0, -5],
+        [-10,  5,  5,  5,  5,  5,  0,-10],
+        [-10,  0,  5,  0,  0,  0,  0,-10],
+        [-20,-10,-10, -5, -5,-10,-10,-20]
+    ],
+    'K': [
+        [-30,-40,-40,-40,-40,-40,-40,-30],
+        [-30,-40,-40,-40,-40,-40,-40,-30],
+        [-30,-40,-40,-40,-40,-40,-40,-30],
+        [-30,-40,-40,-40,-40,-40,-40,-30],
+        [-20,-30,-20, -5, -5,-20,-30,-20],
+        [-10, 20, 30, 30, 30, 30, 20,-10],
+        [20, 30, 40, 50, 50, 40, 30, 20],
+        [20, 30, 40, 50, 50, 40, 30, 20]
+    ]
+}
 # Load Piece Images
 PIECE_IMAGES = {}
 def load_images():
@@ -124,7 +191,7 @@ def draw_captured_pieces():
 
 
 # Rules for Piece Movement
-def rules(row, col, new_row, new_col, piece):
+def rules(board , row, col, new_row, new_col, piece):
     global captured_white, captured_black
 
     # Prevent moving to the same square
@@ -224,18 +291,18 @@ def rules(row, col, new_row, new_col, piece):
 
     return False  # Default case: invalid move
 
-# Check if the King is in Check
-def is_king_in_check(color):
-    king_pos = None
-    # Find the king's position
+def find_king_position(cur_board, color):
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
-            if piece == f'{color}K':
-                king_pos = (row, col)
-                break
-        if king_pos:
-            break
+            piece = cur_board[row][col]
+            if piece == color + 'K':
+                return (row, col)
+    return None
+
+# Check if the King is in Check
+def is_king_in_check(cur_board , color):
+    # Find the king's position
+    king_pos = find_king_position(cur_board,color)
     if not king_pos:
         return False  # King not found (should not happen)
 
@@ -243,26 +310,19 @@ def is_king_in_check(color):
     opponent_color = 'b' if color == 'w' else 'w'
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
+            piece = cur_board[row][col]
             if piece != '.' and piece[0] == opponent_color:
-                if rules(row, col, king_pos[0], king_pos[1], piece):
+                if rules(cur_board,row, col, king_pos[0], king_pos[1], piece):
                     return True
     return False
 
 # Checkmate Detection
-def is_checkmate(color):
-    if not is_king_in_check(color):
+def is_checkmate(cur_board ,color):
+    if not is_king_in_check(cur_board ,color):
         return False  # Not in check, so not checkmate
 
     # Find the king's position
-    king_pos = None
-    for row in range(8):
-        for col in range(8):
-            if board[row][col] == f'{color}K':
-                king_pos = (row, col)
-                break
-        if king_pos:
-            break
+    king_pos = find_king_position(cur_board,color)
     if not king_pos:
         return False  # King not found (should not happen)
 
@@ -273,29 +333,29 @@ def is_checkmate(color):
                 continue  # Skip the current position
             new_row, new_col = king_pos[0] + row_diff, king_pos[1] + col_diff
             if 0 <= new_row < 8 and 0 <= new_col < 8:
-                if rules(king_pos[0], king_pos[1], new_row, new_col, f'{color}K'):
+                if rules(cur_board , king_pos[0], king_pos[1], new_row, new_col, f'{color}K'):
                     # Simulate the move
-                    target_piece = board[new_row][new_col]
-                    board[new_row][new_col] = f'{color}K'
-                    board[king_pos[0]][king_pos[1]] = '.'
+                    target_piece = cur_board[new_row][new_col]
+                    cur_board[new_row][new_col] = f'{color}K'
+                    cur_board[king_pos[0]][king_pos[1]] = '.'
                     # Check if the king is still in check after the move
-                    if not is_king_in_check(color):
+                    if not is_king_in_check(cur_board,color):
                         # Undo the move
-                        board[king_pos[0]][king_pos[1]] = f'{color}K'
-                        board[new_row][new_col] = target_piece
+                        cur_board[king_pos[0]][king_pos[1]] = f'{color}K'
+                        cur_board[new_row][new_col] = target_piece
                         return False  # King can escape, not checkmate
                     # Undo the move
-                    board[king_pos[0]][king_pos[1]] = f'{color}K'
-                    board[new_row][new_col] = target_piece
+                    cur_board[king_pos[0]][king_pos[1]] = f'{color}K'
+                    cur_board[new_row][new_col] = target_piece
 
     # Check if any piece can block or capture the attacking piece
     attacking_pieces = []
     opponent_color = 'b' if color == 'w' else 'w'
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
+            piece = cur_board[row][col]
             if piece != '.' and piece[0] == opponent_color:
-                if rules(row, col, king_pos[0], king_pos[1], piece):
+                if rules(cur_board , row, col, king_pos[0], king_pos[1], piece):
                     attacking_pieces.append((row, col, piece))
 
     # If there are multiple attacking pieces, the king must move (no blocking or capturing)
@@ -308,22 +368,22 @@ def is_checkmate(color):
         # Check if the attacking piece can be captured
         for row in range(8):
             for col in range(8):
-                piece = board[row][col]
+                piece = cur_board[row][col]
                 if piece != '.' and piece[0] == color:
-                    if rules(row, col, attacker_row, attacker_col, piece):
+                    if rules(cur_board , row, col, attacker_row, attacker_col, piece):
                         # Simulate the capture
-                        captured_piece = board[attacker_row][attacker_col]
-                        board[attacker_row][attacker_col] = piece
-                        board[row][col] = '.'
+                        captured_piece = cur_board[attacker_row][attacker_col]
+                        cur_board[attacker_row][attacker_col] = piece
+                        cur_board[row][col] = '.'
                         # Check if the king is still in check after the capture
-                        if not is_king_in_check(color):
+                        if not is_king_in_check(cur_board,color):
                             # Undo the capture
-                            board[row][col] = piece
-                            board[attacker_row][attacker_col] = captured_piece
+                            cur_board[row][col] = piece
+                            cur_board[attacker_row][attacker_col] = captured_piece
                             return False  # Attacker can be captured, not checkmate
                         # Undo the capture
-                        board[row][col] = piece
-                        board[attacker_row][attacker_col] = captured_piece
+                        cur_board[row][col] = piece
+                        cur_board[attacker_row][attacker_col] = captured_piece
 
         # Check if the attack can be blocked (only for sliding pieces: rook, bishop, queen)
         if attacker_piece[1] in ['R', 'B', 'Q']:
@@ -343,144 +403,252 @@ def is_checkmate(color):
             for block_row, block_col in path:
                 for row in range(8):
                     for col in range(8):
-                        piece = board[row][col]
+                        piece = cur_board[row][col]
                         if piece != '.' and piece[0] == color:
-                            if rules(row, col, block_row, block_col, piece):
+                            if rules(cur_board , row, col, block_row, block_col, piece):
                                 # Simulate the block
-                                target_piece = board[block_row][block_col]
-                                board[block_row][block_col] = piece
-                                board[row][col] = '.'
+                                target_piece = cur_board[block_row][block_col]
+                                cur_board[block_row][block_col] = piece
+                                cur_board[row][col] = '.'
                                 # Check if the king is still in check after the block
-                                if not is_king_in_check(color):
+                                if not is_king_in_check(cur_board,color):
                                     # Undo the block
-                                    board[row][col] = piece
-                                    board[block_row][block_col] = target_piece
+                                    cur_board[row][col] = piece
+                                    cur_board[block_row][block_col] = target_piece
                                     return False  # Attack can be blocked, not checkmate
                                 # Undo the block
-                                board[row][col] = piece
-                                board[block_row][block_col] = target_piece
+                                cur_board[row][col] = piece
+                                cur_board[block_row][block_col] = target_piece
 
     # If no moves can escape the check, it's checkmate
     return True
 
-# Define center squares
-CENTER_SQUARES = [(3, 3), (3, 4), (4, 3), (4, 4)]
 
-def find_king_position(board, color):
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            if piece == color + 'K':
-                return (row, col)
-    return None
-
-def evaluate_king_safety(board, color):
-    king_pos = find_king_position(board, color)
-    if not king_pos:
-        return 0
-    row, col = king_pos
-    opponent = 'b' if color == 'w' else 'w'
-    attacks = 0
-    for r in range(max(0, row-1), min(8, row+2)):
-        for c in range(max(0, col-1), min(8, col+2)):
-            if board[r][c] != '.' and board[r][c][0] == opponent:
-                attacks += 1
-    return -attacks * 10  # Penalize attacks on the king
-
-def evaluate_pawn_structure(board, color):
-    score = 0
-    opponent = 'b' if color == 'w' else 'w'
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            if piece == color + 'P':
-                # Check for doubled pawns
-                if col > 0 and board[row][col-1] == color + 'P':
-                    score -= 10
-                if col < 7 and board[row][col+1] == color + 'P':
-                    score -= 10
-                # Check for isolated pawns
-                has_neighbor = False
-                for c in range(max(0, col-1), min(8, col+2)):
-                    if board[row][c] == color + 'P':
-                        has_neighbor = True
-                if not has_neighbor:
-                    score -= 20
-                # Check for passed pawns
-                passed = True
-                for r in range(row-1, -1, -1):
-                    if board[r][col] == opponent + 'P':
-                        passed = False
-                        break
-                for r in range(row-1, -1, -1):
-                    if col > 0 and board[r][col-1] == opponent + 'P':
-                        passed = False
-                        break
-                for r in range(row-1, -1, -1):
-                    if col < 7 and board[r][col+1] == opponent + 'P':
-                        passed = False
-                        break
-                if passed:
-                    score += 30
-    return score
-
-def evaluate_piece_activity(board, color):
-    score = 0
-    for row in range(8):
-        for col in range(8):
-            piece = board[row][col]
-            if piece != '.' and piece[0] == color:
-                score += 10  # Simple activity score
-    return score
-
-def determine_game_phase(board):
-    piece_count = 0
-    for row in range(8):
-        for col in range(8):
-            if board[row][col] != '.':
-                piece_count += 1
+def determine_game_phase(cur_board):
+    piece_count = np.sum(cur_board != '.')
     if piece_count > 24:
         return 'opening'
     elif piece_count > 16:
         return 'middlegame'
     else:
         return 'endgame'
+    
+def evaluate_king_safety(cur_board , color):
+    safety_score = 0
+    opponent = 'b' if color == 'w' else 'w'
+    king_pos = find_king_position(cur_board, color)
+    if not king_pos:
+        return 0  # King not found, should not happen in a valid board state
 
-def evaluate_position(board, color):
+    # Directions around the king (8 squares)
+    directions = [(-1, -1), (-1, 0), (-1, 1),
+                  (0, -1),          (0, 1),
+                  (1, -1),  (1, 0), (1, 1)]
+
+    # King's position
+    king_row, king_col = king_pos
+
+    # List of squares around the king
+    adjacent_squares = [(king_row + dr, king_col + dc) for dr, dc in directions
+                        if 0 <= king_row + dr < 8 and 0 <= king_col + dc < 8]
+
+    # Find all opponent pieces
+    opponent_pieces = np.argwhere(cur_board[0] == opponent)
+
+    # Count attackers that can attack the king
+    attackers = 0
+    for opp_pos in opponent_pieces:
+        if rules(cur_board ,opp_pos[0], opp_pos[1], king_row, king_col, cur_board[opp_pos[0], opp_pos[1]]):
+            attackers += 1
+
+    safety_score -= attackers * 10  # Each attacker subtracts 10 points
+
+    # Count squares around the king that are under attack by opponent pieces
+    threatened_squares = 0
+    for square in adjacent_squares:
+        sr, sc = square
+        for opp_pos in opponent_pieces:
+            if rules(cur_board ,opp_pos[0], opp_pos[1], sr, sc, cur_board[opp_pos[0], opp_pos[1]]):
+                threatened_squares += 1
+                break  # No need to check further pieces for this square
+
+    safety_score -= threatened_squares * 5  # Each threatened square subtracts 5 points
+
+    # Count defenders (player's pieces that can move to adjacent squares)
+    defenders = 0
+    my_pieces = np.argwhere(cur_board[0] == color)
+    for square in adjacent_squares:
+        sr, sc = square
+        for pos in my_pieces:
+            if rules(cur_board , pos[0], pos[1], sr, sc, cur_board[pos[0], pos[1]]):
+                defenders += 1
+                break  # No need to check further pieces for this square
+
+    safety_score += defenders * 5  # Each defender adds 5 points
+
+    return safety_score
+
+def evaluate_center_control(cur_board, color):
+    score = 0.0
+    my_color = color
+    opponent_color = 'b' if color == 'w' else 'w'
+    
+    # Get pieces on center squares
+    center_pieces = [cur_board[row][col] for row, col in CENTER_SQUARES]
+    
+    # Evaluate material on center squares
+    for piece in center_pieces:
+        if piece != '.':
+            if piece[0] == my_color:
+                score += PIECE_VALUES[piece[1]]
+            elif piece[0] == opponent_color:
+                score -= PIECE_VALUES[piece[1]]
+    
+    # Evaluate attacking pieces on center squares
+    for square in CENTER_SQUARES:
+        row, col = square
+        attacking_pieces = np.argwhere(cur_board[0] == my_color)
+        for pos in attacking_pieces:
+            if rules(cur_board ,pos[0], pos[1], row, col, cur_board[pos[0], pos[1]]):
+                score += PIECE_VALUES[cur_board[pos[0], pos[1]][1]] / 2
+        attacking_pieces = np.argwhere(cur_board[0] == opponent_color)
+        for pos in attacking_pieces:
+            if rules(pos[0], pos[1], row, col, cur_board[pos[0], pos[1]]):
+                score -= PIECE_VALUES[cur_board[pos[0], pos[1]][1]] / 2
+    
+    return score
+
+def calculate_mobility(cur_board, color):
+    moves = 0
+    my_pieces = np.argwhere(cur_board[0] == color)
+    for pos in my_pieces:
+        piece = cur_board[pos[0], pos[1]]
+        for new_row in range(8):
+            for new_col in range(8):
+                if rules(cur_board ,pos[0], pos[1], new_row, new_col, piece):
+                    moves += 1
+    return moves
+
+def evaluate_piece_activity( cur_board ,color):
+    score = 0
+    my_pieces = np.argwhere(cur_board[0] == color)
+    for pos in my_pieces:
+        piece = cur_board[pos[0], pos[1]]
+        score += PIECE_VALUES[piece[1]] / 10  # Adjusted activity score
+    return score
+
+def get_pawns(cur_board,color):
+    pawns = []
+    pawn_symbol = f'{color}P'
+    pawn_positions = np.argwhere(cur_board[0] == pawn_symbol)
+    for pos in pawn_positions:
+        pawns.append((pos[0], pos[1]))
+    return pawns
+
+def evaluate_pawn_structure(cur_board , color):
+    pawns = get_pawns(cur_board, color)
+    if not pawns:
+        return 0
+    
+    files = sorted([pawn[1] for pawn in pawns])
+    islands = 1
+    for i in range(1, len(files)):
+        if files[i] != files[i-1] + 1:
+            islands += 1
+    
+    file_counts = {}
+    for pawn in pawns:
+        col = pawn[1]
+        file_counts[col] = file_counts.get(col, 0) + 1
+    
+    doubled = sum(count - 1 for count in file_counts.values() if count > 1)
+    
+    files_set = set(files)
+    isolated = 0
+    for pawn in pawns:
+        col = pawn[1]
+        adjacent = set()
+        if col > 0:
+            adjacent.add(col - 1)
+        if col < 7:
+            adjacent.add(col + 1)
+        if not adjacent & files_set:
+            isolated += 1
+    
+    backward = 0
+    if color == 'w':
+        direction = -1
+        enemy_pawn = 'bP'
+    else:
+        direction = 1
+        enemy_pawn = 'wP'
+    for pawn in pawns:
+        row, col = pawn
+        support_rows = range(row - 1, -1, -1) if color == 'w' else range(row + 1, 8)
+        supported = any(cur_board[r, col] == f'{color}P' for r in support_rows)
+        if not supported:
+            enemy_rows = range(row - 1, -1, -1) if color == 'w' else range(row + 1, 8)
+            if any(cur_board[r, col] == enemy_pawn for r in enemy_rows):
+                backward += 1
+    
+    passed = 0
+    for pawn in pawns:
+        row, col = pawn
+        is_passed = True
+        step = -1 if color == 'w' else 1
+        end = -1 if color == 'w' else 8
+        for r in range(row + step, end, step):
+            if 0 <= r < 8:
+                if cur_board[r, col] == enemy_pawn:
+                    is_passed = False
+                    break
+                if col > 0 and cur_board[r, col - 1] == enemy_pawn:
+                    is_passed = False
+                    break
+                if col < 7 and cur_board[r, col + 1] == enemy_pawn:
+                    is_passed = False
+                    break
+        if is_passed:
+            passed += 1
+    
+    score = (
+        -10 * islands
+        - 20 * doubled
+        - 30 * isolated
+        - 40 * backward
+        + 50 * passed
+    )
+    return score
+
+def evaluate_position(cur_board , color):
     score = 0
 
     # Material Evaluation
+    material = 0
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
+            piece = cur_board[row][col]
             if piece != '.':
                 if piece[0] == color:
-                    score += PIECE_VALUES[piece[1]]
+                    material += PIECE_VALUES[piece[1]]
                 else:
-                    score -= PIECE_VALUES[piece[1]]
+                    material -= PIECE_VALUES[piece[1]]
+    score += material
 
     # Center Control
-    center_control = 0
-    for row, col in CENTER_SQUARES:
-        piece = board[row][col]
-        if piece != '.':
-            if piece[0] == color:
-                center_control += 1
-            else:
-                center_control -= 1
-    score += center_control * 10  # Adjust weight as needed
+    score += evaluate_center_control(cur_board,color)  
 
     # King Safety
-    score += evaluate_king_safety(board, color)
+    score += evaluate_king_safety(cur_board , color)
 
     # Pawn Structure
-    score += evaluate_pawn_structure(board, color)
+    score += evaluate_pawn_structure(cur_board , color)
 
     # Piece Activity
-    score += evaluate_piece_activity(board, color)
+    score += evaluate_piece_activity(cur_board , color)
 
     # Game Phase
-    phase = determine_game_phase(board)
+    phase = determine_game_phase(cur_board)
     if phase == 'endgame':
         score *= 0.8  # Adjust weights for endgame
     elif phase == 'middlegame':
@@ -488,41 +656,97 @@ def evaluate_position(board, color):
     else:
         score *= 1.2  # Opening phase favors development
 
-    return score
-# Knowledge-Based Decision Maker
-def make_knowledge_based_move(color):
-    global captured_white, captured_black
-    best_move = None
-    best_score = -math.inf
-    best_capture = None
+    # Piece Square Tables
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
+            piece = cur_board[row][col]
+            if piece != '.':
+                piece_type = piece[1]
+                table = PIECE_SQUARE_TABLES.get(piece_type, [[0]*8 for _ in range(8)])
+                if piece[0] == color:
+                    score += table[row][col]
+                else:
+                    score -= table[7 - row][col]  # Mirror for the opponent
+
+    # Mobility
+    my_mobility = calculate_mobility(cur_board, color)
+    opp_mobility = calculate_mobility(cur_board, 'b' if color == 'w' else 'w')
+    score += my_mobility - opp_mobility  # Adjust the weight as needed
+    
+    return score
+
+
+def minimax_alpha_beta(cur_board, depth, alpha, beta, maximizing_player, color):
+    if depth == 0:
+        return evaluate_position(cur_board,color), None
+    
+    opponent = 'b' if color == 'w' else 'w'
+    
+    if maximizing_player:
+        max_eval = -np.inf
+        best_move = None
+        for move, new_board in generate_legal_moves(cur_board,color):
+            # Recursive call with new_board
+            evaluation, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, False, color)
+            if evaluation > max_eval:
+                max_eval = evaluation
+                best_move = move
+            alpha = max(alpha, evaluation)
+            if beta <= alpha:
+                break  # Beta cutoff
+        return max_eval, best_move
+    else:
+        min_eval = np.inf
+        best_move = None
+        for move, new_board in generate_legal_moves(cur_board,opponent):
+            # Recursive call with new_board
+            evaluation, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, True, color)
+            if evaluation < min_eval:
+                min_eval = evaluation
+                best_move = move
+            beta = min(beta, evaluation)
+            if beta <= alpha:
+                break  # Alpha cutoff
+        return min_eval, best_move
+
+
+def generate_legal_moves(cur_board,color):
+    moves = []
+    for row in range(8):
+        for col in range(8):
+            piece = cur_board[row][col]
             if piece != '.' and piece[0] == color:
                 for new_row in range(8):
                     for new_col in range(8):
-                        if rules(row, col, new_row, new_col, piece):
-                            # Simulate the move
-                            new_board = [row[:] for row in board]
-                            new_board[new_row][new_col] = piece
-                            new_board[row][col] = '.'
-                            # Check if it's a capture
-                            target_piece = board[new_row][new_col]
-                            # Evaluate the move
-                            score = evaluate_position(new_board, color)
-                            if score > best_score:
-                                best_score = score
-                                best_move = new_board
-                                best_capture = target_piece  # Store the captured piece
+                        if rules(cur_board, row, col, new_row, new_col, piece):
+                            temp_board = [row[:] for row in cur_board]
+                            temp_piece = temp_board[row][col]
+                            target_piece = temp_board[new_row][new_col]
+                            temp_board[new_row][new_col] = temp_piece
+                            temp_board[row][col] = '.'
+                            moves.append(((row, col, new_row, new_col),temp_board))
+    return moves
+   
+
+def make_move(color):
+    #global board, current_turn
+    depth = 3  # Set the desired depth for the minimax search
+    evaluation, best_move = minimax_alpha_beta(board, depth, -np.inf, np.inf, True, color)
     if best_move:
-        for row in range(8):
-            for col in range(8):
-                board[row][col] = best_move[row][col]
-        if best_capture and best_capture != '.':
-            if 'w' in best_capture:
-                captured_white.append(best_capture)
-            elif 'b' in best_capture:
-                captured_black.append(best_capture)
+        old_row, old_col, new_row, new_col = best_move
+        # Move the piece
+        piece = board[old_row][old_col]
+        target_piece = board[new_row][new_col]
+        board[new_row][new_col] = piece
+        board[old_row][old_col] = '.'
+        # Update captured pieces
+        if target_piece != '.':
+            if 'w' in target_piece:
+                captured_white.append(target_piece)
+            elif 'b' in target_piece:
+                captured_black.append(target_piece)
+    else:
+        print("No legal moves available. It's a stalemate.")
 
 # Display Checkmate Message and Restart Option
 def display_checkmate_message(winner):
@@ -591,6 +815,7 @@ def is_king_on_board(board, color):
             if board[row][col] == f'{color}K':
                 return True
     return False
+
 # Main Game Loop
 def main():
     global current_turn
@@ -626,7 +851,7 @@ def main():
                     mouse_x, mouse_y = event.pos
                     col, row = mouse_x // SQUARE_SIZE, mouse_y // SQUARE_SIZE
                     old_row, old_col = dragging_piece_pos
-                    if rules(old_row, old_col, row, col, dragging_piece):
+                    if rules(board ,old_row, old_col, row, col, dragging_piece):
                         # Capture logic
                         target_piece = board[row][col]
                         if target_piece != '.':
@@ -639,7 +864,7 @@ def main():
                         board[row][col] = dragging_piece
                         board[old_row][old_col] = '.'
                         dragging_piece = None
-
+                        '''
                         # Check if the black king is still on the board
                         if not is_king_on_board(board, 'b'):
                             print("Checkmate! White wins.")
@@ -648,15 +873,15 @@ def main():
                             else:
                                 running = False
                             continue
-
+                        '''
                         # Check if the king is in check
-                        if is_king_in_check('b'):
+                        if is_king_in_check(board,'b'):
                             display_check_alert('black')
                         # Switch turns
                         current_turn = 'black'
                         # AI makes a move after the player
-                        make_knowledge_based_move('b')
-
+                        make_move('b')
+                      
                         # Check if the white king is still on the board
                         if not is_king_on_board(board, 'w'):
                             print("Checkmate! Black wins.")
@@ -665,18 +890,18 @@ def main():
                             else:
                                 running = False
                             continue
-
+                        
                         # Check if the king is in check
-                        if is_king_in_check('w'):
+                        if is_king_in_check(board,'w'):
                             display_check_alert('white')
                         # Check for checkmate
-                        if is_checkmate('w'):
+                        if is_checkmate(board,'w'):
                             print("Checkmate! Black wins.")
                             if display_checkmate_message('Black'):
                                 restart()
                             else:
                                 running = False
-                        elif is_checkmate('b'):
+                        elif is_checkmate(board,'b'):
                             print("Checkmate! White wins.")
                             if display_checkmate_message('White'):
                                 restart()
