@@ -122,6 +122,7 @@ def draw_captured_pieces():
         y_offset = (i // 4) * (SQUARE_SIZE // 2)
         screen.blit(PIECE_IMAGES[piece], (black_x + x_offset, black_y + y_offset))
 
+
 # Rules for Piece Movement
 def rules(row, col, new_row, new_col, piece):
     global captured_white, captured_black
@@ -584,6 +585,12 @@ def display_check_alert(color):
     pygame.display.flip()
     pygame.time.delay(1000)  # Display the alert for 1 second
 
+def is_king_on_board(board, color):
+    for row in range(8):
+        for col in range(8):
+            if board[row][col] == f'{color}K':
+                return True
+    return False
 # Main Game Loop
 def main():
     global current_turn
@@ -632,6 +639,16 @@ def main():
                         board[row][col] = dragging_piece
                         board[old_row][old_col] = '.'
                         dragging_piece = None
+
+                        # Check if the black king is still on the board
+                        if not is_king_on_board(board, 'b'):
+                            print("Checkmate! White wins.")
+                            if display_checkmate_message('White'):
+                                restart()
+                            else:
+                                running = False
+                            continue
+
                         # Check if the king is in check
                         if is_king_in_check('b'):
                             display_check_alert('black')
@@ -639,6 +656,16 @@ def main():
                         current_turn = 'black'
                         # AI makes a move after the player
                         make_knowledge_based_move('b')
+
+                        # Check if the white king is still on the board
+                        if not is_king_on_board(board, 'w'):
+                            print("Checkmate! Black wins.")
+                            if display_checkmate_message('Black'):
+                                restart()
+                            else:
+                                running = False
+                            continue
+
                         # Check if the king is in check
                         if is_king_in_check('w'):
                             display_check_alert('white')
@@ -679,6 +706,5 @@ def main():
         pygame.display.flip()
 
     pygame.quit()
-
 if __name__ == "__main__":
     main()
