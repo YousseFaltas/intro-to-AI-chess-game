@@ -111,10 +111,16 @@ def draw_captured_pieces():
     draw_side_area()
     white_x, white_y = 610, 20  # Position for captured white pieces
     black_x, black_y = 610, HEIGHT // 2 + 20  # Position for captured black pieces
+    # Draw captured white pieces
     for i, piece in enumerate(captured_white):
-        screen.blit(PIECE_IMAGES[piece], (white_x + (i % 4) * (SQUARE_SIZE // 2), white_y + (i // 4) * (SQUARE_SIZE // 2)))
+        x_offset = (i % 4) * (SQUARE_SIZE // 2)
+        y_offset = (i // 4) * (SQUARE_SIZE // 2)
+        screen.blit(PIECE_IMAGES[piece], (white_x + x_offset, white_y + y_offset))
+    # Draw captured black pieces
     for i, piece in enumerate(captured_black):
-        screen.blit(PIECE_IMAGES[piece], (black_x + (i % 4) * (SQUARE_SIZE // 2), black_y + (i // 4) * (SQUARE_SIZE // 2)))
+        x_offset = (i % 4) * (SQUARE_SIZE // 2)
+        y_offset = (i // 4) * (SQUARE_SIZE // 2)
+        screen.blit(PIECE_IMAGES[piece], (black_x + x_offset, black_y + y_offset))
 
 # Rules for Piece Movement
 def rules(row, col, new_row, new_col, piece):
@@ -357,11 +363,11 @@ def is_checkmate(color):
     return True
 
 # Evaluate a Move Based on Heuristics
-def evaluate_move(board, move, color):
+def evaluate_move(board, color):
     score = 0
     for row in range(8):
         for col in range(8):
-            piece = move[row][col]
+            piece = board[row][col]
             if piece != '.':
                 # Add piece value to the score
                 score += PIECE_VALUES[piece[1]] * (1 if piece[0] == color else -1)
@@ -369,8 +375,10 @@ def evaluate_move(board, move, color):
 
 # Knowledge-Based Decision Maker
 def make_knowledge_based_move(color):
+    global captured_white, captured_black
     best_move = None
-    best_score = -math.inf  # Use math.inf for initializing best_score
+    best_score = -math.inf
+    best_capture = None
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
@@ -382,24 +390,24 @@ def make_knowledge_based_move(color):
                             new_board = [row[:] for row in board]
                             new_board[new_row][new_col] = piece
                             new_board[row][col] = '.'
+                            # Check if it's a capture
+                            target_piece = board[new_row][new_col]
                             # Evaluate the move
-                            score = evaluate_move(new_board, new_board, color)
+                            score = evaluate_move(new_board, color)
                             if score > best_score:
                                 best_score = score
                                 best_move = new_board
+                                best_capture = target_piece  # Store the captured piece
     if best_move:
         for row in range(8):
             for col in range(8):
                 board[row][col] = best_move[row][col]
-def is_king_captured():
-    # Check if either king is missing from the board
-    white_king_present = any('wK' in row for row in board)
-    black_king_present = any('bK' in row for row in board)
-    if not white_king_present:
-        return 'black'  # White king is captured, black wins
-    if not black_king_present:
-        return 'white'  # Black king is captured, white wins
-    return None  # Both kings are present
+        if best_capture and best_capture != '.':
+            if 'w' in best_capture:
+                captured_white.append(best_capture)
+            elif 'b' in best_capture:
+                captured_black.append(best_capture)
+
 # Display Checkmate Message and Restart Option
 def display_checkmate_message(winner):
     # Create a semi-transparent overlay
@@ -452,6 +460,16 @@ def display_checkmate_message(winner):
                     return True  # Restart the game
                 elif no_button.collidepoint(mouse_x, mouse_y):
                     return False  # Exit the game
+
+# Display Check Alert
+def display_check_alert(color):
+    font = pygame.font.SysFont(None, 50)
+    text = font.render(f"{color.capitalize()} King is in Check!", True, (255, 0, 0))
+    screen.blit(text, (610, 400))
+    pygame.display.flip()
+    pygame.time.delay(1000)  # Display the alert for 1 second
+
+# Main Game Loop
 def main():
     global current_turn
     piece = None
@@ -486,63 +504,39 @@ def main():
                     mouse_x, mouse_y = event.pos
                     col, row = mouse_x // SQUARE_SIZE, mouse_y // SQUARE_SIZE
                     old_row, old_col = dragging_piece_pos
-                    # Drop the piece on the new square
                     if rules(old_row, old_col, row, col, dragging_piece):
                         # Capture logic
                         target_piece = board[row][col]
                         if target_piece != '.':
                             if 'w' in target_piece:
                                 captured_white.append(target_piece)
+                                print(f"Captured white piece: {target_piece}")
                             elif 'b' in target_piece:
                                 captured_black.append(target_piece)
+                                print(f"Captured black piece: {target_piece}")
                         board[row][col] = dragging_piece
+                        board[old_row][old_col] = '.'
                         dragging_piece = None
-                        # Check if a king has been captured
-                        king_captured = is_king_captured()
-                        if king_captured:
-                            if king_captured == 'black':
-                                print("Black wins! White king has been captured.")
-                                if display_checkmate_message('Black'):  # Corrected: Pass 'Black'
-                                    restart()
-                                else:
-                                    running = False
-                            else:
-                                print("White wins! Black king has been captured.")
-                                if display_checkmate_message('White'):  # Corrected: Pass 'White'
-                                    restart()
-                                else:
-                                    running = False
-                            break
+                        # Check if the king is in check
+                        if is_king_in_check('b'):
+                            display_check_alert('black')
                         # Switch turns
                         current_turn = 'black'
                         # AI makes a move after the player
                         make_knowledge_based_move('b')
-                        # Check if a king has been captured after AI move
-                        king_captured = is_king_captured()
-                        if king_captured:
-                            if king_captured == 'black':
-                                print("Black wins! White king has been captured.")
-                                if display_checkmate_message('Black'):  # Corrected: Pass 'Black'
-                                    restart()
-                                else:
-                                    running = False
-                            else:
-                                print("White wins! Black king has been captured.")
-                                if display_checkmate_message('White'):  # Corrected: Pass 'White'
-                                    restart()
-                                else:
-                                    running = False
-                            break
-                        # Check for checkmate after AI move
+                        # Check if the king is in check
+                        if is_king_in_check('w'):
+                            display_check_alert('white')
+                        # Check for checkmate
                         if is_checkmate('w'):
                             print("Checkmate! Black wins.")
-                            if display_checkmate_message('Black'):  # Corrected: Pass 'Black'
+                            if display_checkmate_message('Black'):
                                 restart()
                             else:
                                 running = False
                         elif is_checkmate('b'):
                             print("Checkmate! White wins.")
-                            if display_checkmate_message('White'):  # Corrected: Pass 'White'
+                            if display_checkmate_message('White'):
                                 restart()
                             else:
                                 running = False
@@ -570,5 +564,6 @@ def main():
         pygame.display.flip()
 
     pygame.quit()
+
 if __name__ == "__main__":
     main()
