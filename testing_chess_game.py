@@ -18,8 +18,8 @@ pygame.display.set_caption("Chess Game")
 
 # Piece Values
 PIECE_VALUES = {
-    'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 100,
-    'p': -1, 'n': -3, 'b': -3, 'r': -5, 'q': -9, 'k': -100
+    'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000,
+    'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
 }
 
 # Load Piece Images
@@ -362,17 +362,132 @@ def is_checkmate(color):
     # If no moves can escape the check, it's checkmate
     return True
 
-# Evaluate a Move Based on Heuristics
-def evaluate_move(board, color):
+# Define center squares
+CENTER_SQUARES = [(3, 3), (3, 4), (4, 3), (4, 4)]
+
+def find_king_position(board, color):
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece == color + 'K':
+                return (row, col)
+    return None
+
+def evaluate_king_safety(board, color):
+    king_pos = find_king_position(board, color)
+    if not king_pos:
+        return 0
+    row, col = king_pos
+    opponent = 'b' if color == 'w' else 'w'
+    attacks = 0
+    for r in range(max(0, row-1), min(8, row+2)):
+        for c in range(max(0, col-1), min(8, col+2)):
+            if board[r][c] != '.' and board[r][c][0] == opponent:
+                attacks += 1
+    return -attacks * 10  # Penalize attacks on the king
+
+def evaluate_pawn_structure(board, color):
+    score = 0
+    opponent = 'b' if color == 'w' else 'w'
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece == color + 'P':
+                # Check for doubled pawns
+                if col > 0 and board[row][col-1] == color + 'P':
+                    score -= 10
+                if col < 7 and board[row][col+1] == color + 'P':
+                    score -= 10
+                # Check for isolated pawns
+                has_neighbor = False
+                for c in range(max(0, col-1), min(8, col+2)):
+                    if board[row][c] == color + 'P':
+                        has_neighbor = True
+                if not has_neighbor:
+                    score -= 20
+                # Check for passed pawns
+                passed = True
+                for r in range(row-1, -1, -1):
+                    if board[r][col] == opponent + 'P':
+                        passed = False
+                        break
+                for r in range(row-1, -1, -1):
+                    if col > 0 and board[r][col-1] == opponent + 'P':
+                        passed = False
+                        break
+                for r in range(row-1, -1, -1):
+                    if col < 7 and board[r][col+1] == opponent + 'P':
+                        passed = False
+                        break
+                if passed:
+                    score += 30
+    return score
+
+def evaluate_piece_activity(board, color):
     score = 0
     for row in range(8):
         for col in range(8):
             piece = board[row][col]
-            if piece != '.':
-                # Add piece value to the score
-                score += PIECE_VALUES[piece[1]] * (1 if piece[0] == color else -1)
+            if piece != '.' and piece[0] == color:
+                score += 10  # Simple activity score
     return score
 
+def determine_game_phase(board):
+    piece_count = 0
+    for row in range(8):
+        for col in range(8):
+            if board[row][col] != '.':
+                piece_count += 1
+    if piece_count > 24:
+        return 'opening'
+    elif piece_count > 16:
+        return 'middlegame'
+    else:
+        return 'endgame'
+
+def evaluate_position(board, color):
+    score = 0
+
+    # Material Evaluation
+    for row in range(8):
+        for col in range(8):
+            piece = board[row][col]
+            if piece != '.':
+                if piece[0] == color:
+                    score += PIECE_VALUES[piece[1]]
+                else:
+                    score -= PIECE_VALUES[piece[1]]
+
+    # Center Control
+    center_control = 0
+    for row, col in CENTER_SQUARES:
+        piece = board[row][col]
+        if piece != '.':
+            if piece[0] == color:
+                center_control += 1
+            else:
+                center_control -= 1
+    score += center_control * 10  # Adjust weight as needed
+
+    # King Safety
+    score += evaluate_king_safety(board, color)
+
+    # Pawn Structure
+    score += evaluate_pawn_structure(board, color)
+
+    # Piece Activity
+    score += evaluate_piece_activity(board, color)
+
+    # Game Phase
+    phase = determine_game_phase(board)
+    if phase == 'endgame':
+        score *= 0.8  # Adjust weights for endgame
+    elif phase == 'middlegame':
+        score *= 1.0
+    else:
+        score *= 1.2  # Opening phase favors development
+
+    return score
 # Knowledge-Based Decision Maker
 def make_knowledge_based_move(color):
     global captured_white, captured_black
@@ -393,7 +508,7 @@ def make_knowledge_based_move(color):
                             # Check if it's a capture
                             target_piece = board[new_row][new_col]
                             # Evaluate the move
-                            score = evaluate_move(new_board, color)
+                            score = evaluate_position(new_board, color)
                             if score > best_score:
                                 best_score = score
                                 best_move = new_board

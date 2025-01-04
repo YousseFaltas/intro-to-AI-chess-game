@@ -1,12 +1,37 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\GitHub projects\\intro-to-AI-chess-game\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{829BDD26-FE7C-48E3-99F5-919508C10F2F}|testing chess game.pyproj|C:\\GitHub projects\\intro-to-AI-chess-game\\testing_chess_game.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{829BDD26-FE7C-48E3-99F5-919508C10F2F}|testing chess game.pyproj|solutionrelative:testing_chess_game.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": []
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "testing_chess_game.py",
+              "DocumentMoniker": "C:\\GitHub projects\\intro-to-AI-chess-game\\testing_chess_game.py",
+              "RelativeDocumentMoniker": "testing_chess_game.py",
+              "ToolTip": "C:\\GitHub projects\\intro-to-AI-chess-game\\testing_chess_game.py",
+              "RelativeToolTip": "testing_chess_game.py",
+              "ViewState": "AQIAAFsBAAAAAAAAAAAAAGsBAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-01-03T01:41:09.827Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }
